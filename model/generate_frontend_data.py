@@ -6,6 +6,7 @@ Computes everything the frontend needs from real models + real SMARD data:
 - Ramp event detection (critical grid events)
 - Per-zone congestion probability
 - EUR savings estimation vs persistence baseline
+- Test-set validation (actual vs predicted — the "proof it works" chart)
 - 15-min actual generation (last 24h from SMARD)
 - Model performance metrics (from test set)
 - Feature importance (from trained LightGBM)
@@ -31,8 +32,6 @@ WIND_FEATURES = [
 ]
 ZONES = ["50Hertz", "TenneT", "Amprion", "TransnetBW"]
 
-# Transmission capacity limits (MW) — from Bundesnetzagentur grid development plan
-# These represent approximate installed renewable capacity per zone
 ZONE_CAPACITY_MW = {
     "50Hertz": 18000,
     "TenneT": 35000,
@@ -41,7 +40,6 @@ ZONE_CAPACITY_MW = {
     "All Germany": 92000,
 }
 
-# Imbalance energy cost (EUR/MWh) — average German balancing market price
 IMBALANCE_COST_EUR_PER_MWH = 75
 
 
@@ -158,6 +156,48 @@ wind_importance = [
 ]
 
 # ============================================================================
+# TEST SET VALIDATION (actual vs predicted — the "proof" chart)
+# ============================================================================
+print("Generating validation data (actual vs predicted)...")
+
+# Pick the last 7 days of test data for a compelling visual
+test_sorted = test.sort_values("timestamp")
+last_ts = test_sorted["timestamp"].max()
+validation_start = last_ts - pd.Timedelta(days=7)
+validation_window = test_sorted[test_sorted["timestamp"] >= validation_start]
+
+validation_data = {}
+for zone in ZONES + ["All Germany"]:
+    if zone == "All Germany":
+        agg = validation_window.groupby("timestamp").agg({
+            "solar": "sum", "wind_total": "sum",
+            "solar_q50": "sum", "solar_q10": "sum", "solar_q90": "sum",
+            "wind_q50": "sum", "wind_q10": "sum", "wind_q90": "sum",
+            "persistence_solar": "sum", "persistence_wind_total": "sum",
+        }).reset_index()
+    else:
+        agg = validation_window[validation_window["zone"] == zone].copy()
+
+    points = []
+    for _, row in agg.sort_values("timestamp").iterrows():
+        actual_total = float(row["solar"]) + float(row["wind_total"])
+        predicted_total = float(row["solar_q50"]) + float(row["wind_q50"])
+        baseline_total = float(row["persistence_solar"]) + float(row["persistence_wind_total"])
+        points.append({
+            "ts": row["timestamp"].strftime("%Y-%m-%dT%H:%M"),
+            "actual_solar": round(float(row["solar"]), 0),
+            "actual_wind": round(float(row["wind_total"]), 0),
+            "actual_total": round(actual_total, 0),
+            "predicted_solar": round(float(row["solar_q50"]), 0),
+            "predicted_wind": round(float(row["wind_q50"]), 0),
+            "predicted_total": round(predicted_total, 0),
+            "lower_total": round(float(row["solar_q10"]) + float(row["wind_q10"]), 0),
+            "upper_total": round(float(row["solar_q90"]) + float(row["wind_q90"]), 0),
+            "baseline_total": round(baseline_total, 0),
+        })
+    validation_data[zone] = points
+
+# ============================================================================
 # 72-HOUR FORECAST WITH CONGESTION ANALYSIS
 # ============================================================================
 print("Generating 72h forecast with congestion analysis...")
@@ -223,7 +263,7 @@ for zone in ZONES + ["All Germany"]:
 print("Detecting grid alerts...")
 
 alerts = []
-for zone in ZONES + ["All Germany"]:
+for zone in ZONES:
     hours = hourly_forecast[zone]
     cap = ZONE_CAPACITY_MW[zone]
 
@@ -232,7 +272,6 @@ for zone in ZONES + ["All Germany"]:
         curr_total = hours[i]["total_q50"]
         delta = curr_total - prev_total
 
-        # Ramp alert: >5% of zone capacity change in one hour
         ramp_threshold = cap * 0.05
         if abs(delta) > ramp_threshold:
             severity = "critical" if abs(delta) > cap * 0.1 else "warning"
@@ -246,7 +285,6 @@ for zone in ZONES + ["All Germany"]:
                 "value": round(float(delta), 0),
             })
 
-        # Congestion alert
         if curr_total > cap * 0.85:
             utilization = curr_total / cap * 100
             alerts.append({
@@ -255,11 +293,10 @@ for zone in ZONES + ["All Germany"]:
                 "severity": "critical" if utilization > 95 else "warning",
                 "hour": hours[i]["hour"],
                 "ts": hours[i]["ts"],
-                "message": f"Generation at {utilization:.0f}% of transmission capacity ({curr_total:,.0f} / {cap:,.0f} MW)",
+                "message": f"Generation at {utilization:.0f}% of capacity ({curr_total:,.0f} / {cap:,.0f} MW)",
                 "value": round(float(utilization), 1),
             })
 
-# Deduplicate congestion alerts (keep only first per hour per zone)
 seen = set()
 unique_alerts = []
 for a in alerts:
@@ -268,7 +305,6 @@ for a in alerts:
         seen.add(key)
         unique_alerts.append(a)
 
-# Sort by severity then time
 severity_order = {"critical": 0, "warning": 1}
 unique_alerts.sort(key=lambda a: (severity_order.get(a["severity"], 2), a["ts"]))
 
@@ -300,21 +336,20 @@ for zone in ZONES + ["All Germany"]:
     }
 
 # ============================================================================
-# EUR SAVINGS CALCULATION
+# EUR SAVINGS — Fixed: sum per-zone savings for All Germany
 # ============================================================================
 print("Computing EUR savings...")
 
 savings = {}
-for zone in ZONES + ["All Germany"]:
+for zone in ZONES:
     m = metrics[zone]
-    # MAE reduction = fewer MWh of forecast error per hour
-    solar_mae_reduction = m["solar"]["baselineMae"] - m["solar"]["mae"]
-    wind_mae_reduction = m["wind"]["baselineMae"] - m["wind"]["mae"]
-    total_mae_reduction = max(0, solar_mae_reduction) + max(0, wind_mae_reduction)
+    solar_mae_reduction = max(0, m["solar"]["baselineMae"] - m["solar"]["mae"])
+    wind_mae_reduction = max(0, m["wind"]["baselineMae"] - m["wind"]["mae"])
+    total_mae_reduction = solar_mae_reduction + wind_mae_reduction
 
-    # Only ~30% of forecast error translates to actual imbalance costs
-    # (TSOs use intraday markets, partial hedging, etc.)
-    effective_reduction = total_mae_reduction * 0.30
+    # ~15% of forecast error translates to imbalance costs
+    # Conservative: not all error results in balancing procurement
+    effective_reduction = total_mae_reduction * 0.15
 
     hourly_saving = effective_reduction * IMBALANCE_COST_EUR_PER_MWH
     daily_saving = hourly_saving * 24
@@ -327,6 +362,19 @@ for zone in ZONES + ["All Germany"]:
         "annual_saving_eur": round(annual_saving, 0),
         "imbalance_cost_eur_per_mwh": IMBALANCE_COST_EUR_PER_MWH,
     }
+
+# All Germany = sum of zone savings
+total_annual = sum(s["annual_saving_eur"] for s in savings.values())
+total_daily = sum(s["daily_saving_eur"] for s in savings.values())
+total_hourly = sum(s["hourly_saving_eur"] for s in savings.values())
+total_mae_red = sum(s["mae_reduction_mwh"] for s in savings.values())
+savings["All Germany"] = {
+    "mae_reduction_mwh": round(total_mae_red, 1),
+    "hourly_saving_eur": round(total_hourly, 0),
+    "daily_saving_eur": round(total_daily, 0),
+    "annual_saving_eur": round(total_annual, 0),
+    "imbalance_cost_eur_per_mwh": IMBALANCE_COST_EUR_PER_MWH,
+}
 
 # ============================================================================
 # 15-MIN ACTUALS (Last 24h from SMARD)
@@ -368,7 +416,6 @@ for zone, path in ZONE_FILES.items():
         for _, r in window.iterrows()
     ]
 
-# Aggregate All Germany
 all_ts = {}
 for zone_data in fifteen_min.values():
     for pt in zone_data:
@@ -389,14 +436,16 @@ payload = {
         "name": "GridSight",
         "tagline": "AI-Powered Grid Balancing for German TSOs",
         "problem": "German TSOs spend EUR 4.2B/year on redispatch. Inaccurate renewable forecasts force expensive last-minute grid interventions.",
-        "solution": "LightGBM quantile models trained on 5 years of SMARD + Open-Meteo data reduce wind forecast error by 60%, enabling proactive congestion management.",
+        "solution": "LightGBM quantile models trained on 5 years of SMARD + Open-Meteo data reduce forecast error by up to 60%, enabling proactive congestion management.",
+        "hero_stat": "60.1% wind forecast improvement over persistence baseline",
     },
     "zone_capacities": ZONE_CAPACITY_MW,
     "metrics": metrics,
     "feature_importance": {"solar": solar_importance, "wind": wind_importance},
     "forecast_72h": hourly_forecast,
+    "validation": validation_data,
     "fifteen_min_actuals": fifteen_min,
-    "alerts": unique_alerts[:30],
+    "alerts": unique_alerts[:25],
     "congestion": congestion_summary,
     "savings": savings,
     "model_config": {
@@ -404,9 +453,13 @@ payload = {
         "quantiles": [0.10, 0.50, 0.90],
         "n_estimators": 1000,
         "num_leaves": 127,
+        "training_period": "Jan 2021 - Mar 2026",
+        "test_period": "Mar - Jun 2026",
         "training_hours": 182112,
         "test_hours": 8828,
         "forecast_hours": 72,
+        "weather_source": "Open-Meteo (6 grid points/zone)",
+        "generation_source": "SMARD / Bundesnetzagentur",
     },
 }
 
@@ -416,8 +469,10 @@ with open(out_path, "w") as f:
 
 print(f"\nSaved: {out_path} ({out_path.stat().st_size / 1024:.0f} KB)")
 print(f"Alerts generated: {len(unique_alerts)}")
+print(f"Validation points per zone: {len(validation_data.get('All Germany', []))}")
 for zone in ZONES + ["All Germany"]:
     cs = congestion_summary[zone]
     sv = savings[zone]
-    print(f"  {zone}: {cs['critical_hours']} critical hrs, {cs['congestion_probability_pct']:.0f}% congestion prob, EUR {sv['annual_saving_eur']:,.0f}/yr savings")
+    print(f"  {zone}: {cs['congestion_probability_pct']:.0f}% congestion, EUR {sv['annual_saving_eur']:,.0f}/yr")
+print(f"\nTotal All Germany annual savings: EUR {savings['All Germany']['annual_saving_eur']:,.0f}")
 print("Done!")

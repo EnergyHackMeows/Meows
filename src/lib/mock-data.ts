@@ -1,6 +1,4 @@
 // GridSight TSO Command Center — Data Layer
-// All data from model/generate_frontend_data.py (real LightGBM + SMARD + Open-Meteo)
-
 import gridData from "./grid-data.json";
 
 export type Zone = "All Germany" | "50Hertz" | "TenneT" | "Amprion" | "TransnetBW";
@@ -33,6 +31,19 @@ export interface ForecastHour {
   baseline: number;
   capacity: number;
   congestion_risk: "normal" | "warning" | "critical";
+}
+
+export interface ValidationPoint {
+  ts: string;
+  actual_solar: number;
+  actual_wind: number;
+  actual_total: number;
+  predicted_solar: number;
+  predicted_wind: number;
+  predicted_total: number;
+  lower_total: number;
+  upper_total: number;
+  baseline_total: number;
 }
 
 export interface Alert {
@@ -75,10 +86,16 @@ export interface FifteenMinPoint {
   wind: number;
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
+// ─── API ─────────────────────────────────────────────────────────────────────
 
 export function getProduct() {
-  return data.product as { name: string; tagline: string; problem: string; solution: string };
+  return data.product as {
+    name: string;
+    tagline: string;
+    problem: string;
+    solution: string;
+    hero_stat: string;
+  };
 }
 
 export function getMetrics(zone: Zone): { solar: ModelMetrics; wind: ModelMetrics } {
@@ -89,6 +106,10 @@ export function getForecast72h(zone: Zone): ForecastHour[] {
   return data.forecast_72h[zone] ?? [];
 }
 
+export function getValidation(zone: Zone): ValidationPoint[] {
+  return data.validation[zone] ?? [];
+}
+
 export function get15MinActuals(zone: Zone): FifteenMinPoint[] {
   return data.fifteen_min_actuals[zone] ?? [];
 }
@@ -96,7 +117,7 @@ export function get15MinActuals(zone: Zone): FifteenMinPoint[] {
 export function getAlerts(zone?: Zone): Alert[] {
   const all: Alert[] = data.alerts ?? [];
   if (!zone || zone === "All Germany") return all;
-  return all.filter(a => a.zone === zone || a.zone === "All Germany");
+  return all.filter((a) => a.zone === zone);
 }
 
 export function getCongestion(zone: Zone): CongestionSummary {
@@ -119,21 +140,25 @@ export function getZoneCapacity(zone: Zone): number {
   return data.zone_capacities[zone] ?? 92000;
 }
 
+export function getGeneratedAt(): string {
+  return data.generated_at ?? "";
+}
+
 // ─── Derived ─────────────────────────────────────────────────────────────────
 
 export function getPeakGeneration(zone: Zone): { value: number; hour: string } {
   const hrs = getForecast72h(zone);
   if (!hrs.length) return { value: 0, hour: "" };
-  const peak = hrs.reduce((max, h) => h.total_q50 > max.total_q50 ? h : max, hrs[0]);
+  const peak = hrs.reduce((max, h) => (h.total_q50 > max.total_q50 ? h : max), hrs[0]);
   return { value: peak.total_q50, hour: peak.ts };
 }
 
 export function getRampCount(zone: Zone): number {
-  return getAlerts(zone).filter(a => a.type === "ramp").length;
+  return getAlerts(zone).filter((a) => a.type === "ramp").length;
 }
 
 export function getCriticalAlerts(zone: Zone): Alert[] {
-  return getAlerts(zone).filter(a => a.severity === "critical").slice(0, 8);
+  return getAlerts(zone).filter((a) => a.severity === "critical").slice(0, 10);
 }
 
 export function formatEUR(v: number): string {
@@ -143,8 +168,7 @@ export function formatEUR(v: number): string {
 }
 
 export function formatMW(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 10_000) return `${(v / 1_000).toFixed(1)}k`;
+  if (v >= 100_000) return `${(v / 1_000).toFixed(0)}k`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
   return v.toFixed(0);
 }
