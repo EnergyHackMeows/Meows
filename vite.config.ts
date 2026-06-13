@@ -11,16 +11,9 @@ export default defineConfig({
   // the nitro deploy plugin is skipped and `vite build` only emits SSR bundles
   // (no worker / no static entry), which causes a 404 on Pages.
   nitro: {
-    preset: "cloudflare-module",
-    output: {
-      dir: "dist",
-      serverDir: "dist/server",
-      publicDir: "dist/client",
-    },
+    preset: "cloudflare-pages",
     cloudflare: {
       nodeCompat: true,
-      // Root wrangler.toml is the Pages source of truth; Nitro's generated
-      // wrangler.json uses binding = "ASSETS", which Pages rejects.
       deployConfig: false,
     },
   },
