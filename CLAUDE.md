@@ -1,3 +1,4 @@
+
 # Renewable Generation Forecast — Energy/AI Hackathon Munich
 
 Day-ahead forecasting system predicting hourly solar and wind generation for Germany's four grid zones (50Hertz, TenneT, Amprion, TransnetBW) using weather forecasts as input, with uncertainty bands and a live Streamlit web app.
