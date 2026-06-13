@@ -19,7 +19,9 @@ export default defineConfig({
     },
     cloudflare: {
       nodeCompat: true,
-      deployConfig: true,
+      // Root wrangler.toml is the Pages source of truth; Nitro's generated
+      // wrangler.json uses binding = "ASSETS", which Pages rejects.
+      deployConfig: false,
     },
   },
   tanstackStart: {

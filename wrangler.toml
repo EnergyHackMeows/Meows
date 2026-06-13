@@ -9,6 +9,5 @@ pages_build_output_dir = "./dist/client"
 type = "ESModule"
 globs = ["**/*.mjs", "**/*.js"]
 
-[assets]
-directory = "./dist/client"
-binding = "ASSETS"
+# Do not declare [assets] binding = "ASSETS" on Pages — Cloudflare reserves
+# that name and injects it automatically from pages_build_output_dir.

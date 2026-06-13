@@ -15,7 +15,7 @@ Pages uploaded those files as a static site with no route handler, so `/` return
 ## Fix in this repo
 
 1. **`vite.config.ts`** — `nitro` is enabled with the `cloudflare-module` preset so the build emits a Worker + assets layout.
-2. **`wrangler.toml`** — tells Cloudflare Pages to deploy the Worker at `dist/server/index.mjs` and static assets from `dist/client`.
+2. **`wrangler.toml`** — tells Cloudflare Pages to deploy the Worker at `dist/server/index.mjs` and static assets from `dist/client` via `pages_build_output_dir`. Do **not** set `binding = "ASSETS"` — that name is reserved on Pages and is injected automatically.
 
 ## Cloudflare Pages settings
 
