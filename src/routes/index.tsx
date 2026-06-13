@@ -5,7 +5,6 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -169,18 +168,20 @@ function Dashboard() {
                   Model Proof (Test Set)
                 </button>
               </div>
-              <div className="flex gap-3 text-[10px] text-white/40">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/40">
                 {chartView === "forecast" ? (
                   <>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400"></span>Solar</span>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400"></span>Wind</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-red-400/70"></span>Capacity</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-emerald-400" style={{ borderTop: "1px dashed #10b981" }}></span>Total</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-gray-500/40" style={{ borderTop: "1px dashed #6b7280" }}></span>Baseline</span>
                   </>
                 ) : (
                   <>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400"></span>Actual</span>
                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400"></span>Predicted</span>
-                    <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-white/30"></span>Baseline</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-gray-500/40" style={{ borderTop: "1px dashed #6b7280" }}></span>Baseline</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-2 rounded-sm bg-cyan-400/10 border border-cyan-400/20"></span>P10–P90</span>
                   </>
                 )}
               </div>
@@ -188,7 +189,7 @@ function Dashboard() {
 
             <div className="h-[310px]">
               {chartView === "forecast" ? (
-                <ForecastChart data={forecastChart} capacity={congestion.capacity_mw} />
+                <ForecastChart data={forecastChart} />
               ) : (
                 <ValidationChart data={validationChart} />
               )}
@@ -410,7 +411,7 @@ function Dashboard() {
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
 
-function ForecastChart({ data, capacity }: { data: any[]; capacity: number }) {
+function ForecastChart({ data }: { data: any[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
@@ -428,8 +429,6 @@ function ForecastChart({ data, capacity }: { data: any[]; capacity: number }) {
         <XAxis dataKey="time" tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }} axisLine={false} tickLine={false} interval={11} />
         <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatMW(v)} />
         <Tooltip contentStyle={{ backgroundColor: "#0a1420", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }} />
-        <ReferenceLine y={capacity} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.6} />
-        <ReferenceLine y={capacity * 0.7} stroke="#f59e0b" strokeDasharray="2 4" strokeOpacity={0.3} />
         <Area type="monotone" dataKey="solar_q90" fill="url(#solarG)" stroke="none" />
         <Area type="monotone" dataKey="wind_q90" fill="url(#windG)" stroke="none" />
         <Line type="monotone" dataKey="solar_q50" stroke="#f59e0b" strokeWidth={1.5} dot={false} name="Solar" />

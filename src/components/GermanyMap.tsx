@@ -82,8 +82,8 @@ export function GermanyMap({ selectedZone, onZoneSelect, congestionData }: Germa
           const base = BASE_STYLES[key];
           const cPct = congestionData?.[key] ?? 0;
           const congColor = getCongestionColor(cPct);
-          const fillColor = isActive ? congColor.fill : isAll ? base.fill : "rgba(255,255,255,0.02)";
-          const strokeColor = isActive ? congColor.stroke : isAll ? base.stroke : "rgba(255,255,255,0.1)";
+          const fillColor = isActive ? congColor.fill : isAll ? base.fill : base.fill;
+          const strokeColor = isActive ? congColor.stroke : isAll ? base.stroke : base.stroke;
 
           return (
             <g
@@ -91,7 +91,7 @@ export function GermanyMap({ selectedZone, onZoneSelect, congestionData }: Germa
               onClick={() => onZoneSelect(key as Zone)}
               className="cursor-pointer"
               style={{
-                opacity: isAll ? 0.9 : isActive ? 1 : 0.35,
+                opacity: isAll ? 0.9 : isActive ? 1 : 0.55,
                 transition: "opacity 0.3s ease",
               }}
             >
@@ -120,7 +120,7 @@ export function GermanyMap({ selectedZone, onZoneSelect, congestionData }: Germa
                 className="pointer-events-none"
                 style={{
                   fontSize: isActive ? 10.5 : 9,
-                  fill: isAll || isActive ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)",
+                  fill: isAll || isActive ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.6)",
                   fontWeight: isActive ? 700 : 500,
                   letterSpacing: "0.02em",
                 }}
