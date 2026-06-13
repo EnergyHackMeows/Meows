@@ -1,45 +1,24 @@
-// ============================================================================
-// GridSight Data Layer — Real Model Outputs
-//
-// ALL data in this file comes from:
-//   model/generate_frontend_data.py
-// which runs inference on trained LightGBM models using real SMARD + Open-Meteo data.
-//
-// NO dummy data. NO random numbers. NO assumptions.
-// ============================================================================
+// GridSight TSO Command Center — Data Layer
+// All data from model/generate_frontend_data.py (real LightGBM + SMARD + Open-Meteo)
 
 import gridData from "./grid-data.json";
 
 export type Zone = "All Germany" | "50Hertz" | "TenneT" | "Amprion" | "TransnetBW";
-export type Timeframe = "15min" | "1h" | "daily" | "weekly" | "monthly" | "yearly";
-export type AssetView = "solar" | "wind" | "both";
-
 export const ZONES: Zone[] = ["All Germany", "50Hertz", "TenneT", "Amprion", "TransnetBW"];
-export const TIMEFRAMES: { key: Timeframe; label: string; description: string }[] = [
-  { key: "15min", label: "15 min", description: "Raw SMARD generation data (last 24h)" },
-  { key: "1h", label: "1 Hour", description: "Hourly model forecast (next 72h)" },
-  { key: "daily", label: "1 Day", description: "Daily actuals vs predictions (test set)" },
-  { key: "weekly", label: "1 Week", description: "Weekly totals (Mar–Jun 2026)" },
-  { key: "monthly", label: "1 Month", description: "Monthly totals (2021–2026)" },
-  { key: "yearly", label: "1 Year", description: "Yearly totals (2021–2026)" },
-];
 
-// Types matching the JSON structure
+const data = gridData as any;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 export interface ModelMetrics {
   mae: number;
   rmse: number;
   baselineMae: number;
-  baselineRmse: number;
   improvement: number;
   coverage: number;
 }
 
-export interface FeatureImportance {
-  name: string;
-  importance: number;
-}
-
-export interface HourlyPoint {
+export interface ForecastHour {
   ts: string;
   hour: number;
   solar_q50: number;
@@ -48,138 +27,124 @@ export interface HourlyPoint {
   wind_q50: number;
   wind_q10: number;
   wind_q90: number;
-  persistence_solar: number;
-  persistence_wind: number;
+  total_q50: number;
+  total_q10: number;
+  total_q90: number;
+  baseline: number;
+  capacity: number;
+  congestion_risk: "normal" | "warning" | "critical";
+}
+
+export interface Alert {
+  zone: string;
+  type: "ramp" | "congestion";
+  severity: "warning" | "critical";
+  hour: number;
+  ts: string;
+  message: string;
+  value: number;
+}
+
+export interface CongestionSummary {
+  capacity_mw: number;
+  peak_generation_mw: number;
+  peak_utilization_pct: number;
+  peak_hour: string;
+  critical_hours: number;
+  warning_hours: number;
+  safe_hours: number;
+  congestion_probability_pct: number;
+}
+
+export interface Savings {
+  mae_reduction_mwh: number;
+  hourly_saving_eur: number;
+  daily_saving_eur: number;
+  annual_saving_eur: number;
+  imbalance_cost_eur_per_mwh: number;
+}
+
+export interface FeatureImportance {
+  name: string;
+  importance: number;
 }
 
 export interface FifteenMinPoint {
   ts: string;
   solar: number;
-  wind_total: number;
-}
-
-export interface DailyPoint {
-  date: string;
-  solar_actual: number;
-  wind_actual: number;
-  solar_pred: number;
-  wind_pred: number;
-  solar_lo: number;
-  solar_hi: number;
-  wind_lo: number;
-  wind_hi: number;
-  baseline_solar: number;
-  baseline_wind: number;
-}
-
-export interface WeeklyPoint {
-  week: string;
-  solar_actual: number;
-  wind_actual: number;
-  solar_pred: number;
-  wind_pred: number;
-  baseline_solar: number;
-  baseline_wind: number;
-}
-
-export interface MonthlyPoint {
-  month: string;
-  solar: number;
   wind: number;
 }
 
-export interface YearlyPoint {
-  year: string;
-  solar: number;
-  wind: number;
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+export function getProduct() {
+  return data.product as { name: string; tagline: string; problem: string; solution: string };
 }
 
-export interface RampEvent {
-  hour: number;
-  delta: number;
-  direction: "up" | "down";
-  magnitude: "medium" | "large";
-}
-
-export interface MarketSignals {
-  peak_renewable_hour: number;
-  peak_generation_mwh: number;
-  min_renewable_hour: number;
-  min_generation_mwh: number;
-  total_24h_generation: number;
-  ramp_events: RampEvent[];
-  recommendation: string;
-}
-
-// Cast imported data
-const data = gridData as any;
-
-// Public API
 export function getMetrics(zone: Zone): { solar: ModelMetrics; wind: ModelMetrics } {
   return data.metrics[zone];
+}
+
+export function getForecast72h(zone: Zone): ForecastHour[] {
+  return data.forecast_72h[zone] ?? [];
+}
+
+export function get15MinActuals(zone: Zone): FifteenMinPoint[] {
+  return data.fifteen_min_actuals[zone] ?? [];
+}
+
+export function getAlerts(zone?: Zone): Alert[] {
+  const all: Alert[] = data.alerts ?? [];
+  if (!zone || zone === "All Germany") return all;
+  return all.filter(a => a.zone === zone || a.zone === "All Germany");
+}
+
+export function getCongestion(zone: Zone): CongestionSummary {
+  return data.congestion[zone];
+}
+
+export function getSavings(zone: Zone): Savings {
+  return data.savings[zone];
 }
 
 export function getFeatureImportance(asset: "solar" | "wind"): FeatureImportance[] {
   return data.feature_importance[asset];
 }
 
-export function getMarketSignals(): MarketSignals {
-  return data.market_signals;
-}
-
-export function getDataSource() {
-  return data.data_source;
-}
-
 export function getModelConfig() {
   return data.model_config;
 }
 
-export function get15MinData(zone: Zone): FifteenMinPoint[] {
-  return data.timeframes["15min"][zone] ?? [];
+export function getZoneCapacity(zone: Zone): number {
+  return data.zone_capacities[zone] ?? 92000;
 }
 
-export function getHourlyForecast(zone: Zone): HourlyPoint[] {
-  return data.timeframes["1h"][zone] ?? [];
+// ─── Derived ─────────────────────────────────────────────────────────────────
+
+export function getPeakGeneration(zone: Zone): { value: number; hour: string } {
+  const hrs = getForecast72h(zone);
+  if (!hrs.length) return { value: 0, hour: "" };
+  const peak = hrs.reduce((max, h) => h.total_q50 > max.total_q50 ? h : max, hrs[0]);
+  return { value: peak.total_q50, hour: peak.ts };
 }
 
-export function getDailyData(zone: Zone): DailyPoint[] {
-  return data.timeframes["daily"][zone] ?? [];
+export function getRampCount(zone: Zone): number {
+  return getAlerts(zone).filter(a => a.type === "ramp").length;
 }
 
-export function getWeeklyData(zone: Zone): WeeklyPoint[] {
-  return data.timeframes["weekly"][zone] ?? [];
+export function getCriticalAlerts(zone: Zone): Alert[] {
+  return getAlerts(zone).filter(a => a.severity === "critical").slice(0, 8);
 }
 
-export function getMonthlyData(zone: Zone): MonthlyPoint[] {
-  return data.timeframes["monthly"][zone] ?? [];
+export function formatEUR(v: number): string {
+  if (v >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `€${(v / 1_000).toFixed(0)}k`;
+  return `€${v.toFixed(0)}`;
 }
 
-export function getYearlyData(zone: Zone): YearlyPoint[] {
-  return data.timeframes["yearly"][zone] ?? [];
-}
-
-// Derived computations
-export function getPeakSolar(zone: Zone): number {
-  const hourly = getHourlyForecast(zone);
-  if (!hourly.length) return 0;
-  return Math.max(...hourly.map(h => h.solar_q50));
-}
-
-export function getPeakWind(zone: Zone): number {
-  const hourly = getHourlyForecast(zone);
-  if (!hourly.length) return 0;
-  return Math.max(...hourly.map(h => h.wind_q50));
-}
-
-export function getTotalGeneration(zone: Zone): number {
-  const hourly = getHourlyForecast(zone);
-  return hourly.reduce((sum, h) => sum + h.solar_q50 + h.wind_q50, 0);
-}
-
-export function getCombinedImprovement(zone: Zone): number {
-  const m = getMetrics(zone);
-  const combinedModel = m.solar.mae + m.wind.mae;
-  const combinedBaseline = m.solar.baselineMae + m.wind.baselineMae;
-  return combinedBaseline > 0 ? ((combinedBaseline - combinedModel) / combinedBaseline) * 100 : 0;
+export function formatMW(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 10_000) return `${(v / 1_000).toFixed(1)}k`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return v.toFixed(0);
 }

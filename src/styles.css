@@ -30,47 +30,33 @@
   --color-ring: var(--ring);
   --color-panel: var(--panel);
   --color-panel-border: var(--panel-border);
-  --color-grid-line: var(--grid-line);
-  --color-solar: var(--solar);
-  --color-wind: var(--wind);
-  --color-signal-buy: var(--signal-buy);
-  --color-signal-sell: var(--signal-sell);
-  --color-accent-cyan: var(--accent-cyan);
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, SFMono-Regular, monospace;
   --font-display: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 :root {
   --radius: 0.75rem;
-  --background: #050910;
+  --background: #040810;
   --foreground: #e8edf5;
-  --card: #0b1220;
+  --card: #0a1018;
   --card-foreground: #e8edf5;
-  --popover: #0b1220;
+  --popover: #0a1018;
   --popover-foreground: #e8edf5;
-  --primary: #3ddc97;
+  --primary: #10b981;
   --primary-foreground: #06120c;
-  --secondary: #111c30;
+  --secondary: #0f1825;
   --secondary-foreground: #e8edf5;
-  --muted: #111c30;
+  --muted: #0f1825;
   --muted-foreground: #5e7090;
-  --accent: #152035;
+  --accent: #121e30;
   --accent-foreground: #e8edf5;
-  --destructive: #ff4d6d;
+  --destructive: #ef4444;
   --destructive-foreground: #fff5f7;
-  --border: #162033;
-  --input: #162033;
-  --ring: #3ddc97;
-
-  --panel: #080e1a;
-  --panel-border: #172540;
-  --grid-line: #111c30;
-
-  --solar: #f59e0b;
-  --wind: #06b6d4;
-  --signal-sell: #34d399;
-  --signal-buy: #f87171;
-  --accent-cyan: #22d3ee;
+  --border: #152030;
+  --input: #152030;
+  --ring: #10b981;
+  --panel: #070d18;
+  --panel-border: #14253d;
 }
 
 @layer base {
@@ -84,70 +70,29 @@
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     background-image:
-      radial-gradient(ellipse 1600px 800px at 80% -20%, rgba(6,182,212,0.035), transparent 60%),
-      radial-gradient(ellipse 1000px 600px at -10% 110%, rgba(52,211,153,0.025), transparent 55%);
+      radial-gradient(ellipse 1200px 600px at 70% -15%, rgba(16,185,129,0.025), transparent 55%),
+      radial-gradient(ellipse 800px 500px at 5% 105%, rgba(6,182,212,0.02), transparent 50%);
   }
-  .font-mono { font-family: var(--font-mono); }
-  .tabular { font-variant-numeric: tabular-nums; }
 }
 
 @layer utilities {
-  .glow-green {
-    box-shadow:
-      0 0 40px rgba(52,211,153,0.2),
-      0 0 12px rgba(52,211,153,0.35),
-      inset 0 0 0 1px rgba(52,211,153,0.25);
-  }
-  .glow-red {
-    box-shadow:
-      0 0 40px rgba(248,113,113,0.2),
-      0 0 12px rgba(248,113,113,0.35),
-      inset 0 0 0 1px rgba(248,113,113,0.25);
-  }
   .panel {
-    background: linear-gradient(165deg, rgba(255,255,255,0.022) 0%, rgba(255,255,255,0) 45%), var(--panel);
+    background: linear-gradient(170deg, rgba(255,255,255,0.018) 0%, transparent 40%), var(--panel);
     border: 1px solid var(--panel-border);
     border-radius: var(--radius);
-    backdrop-filter: blur(12px);
   }
-  .panel-elevated {
-    background: linear-gradient(165deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 40%), var(--panel);
-    border: 1px solid var(--panel-border);
-    border-radius: calc(var(--radius) + 2px);
-    backdrop-filter: blur(20px);
-    box-shadow:
-      0 12px 48px rgba(0,0,0,0.5),
-      0 4px 16px rgba(0,0,0,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.02);
-  }
-  .text-display { font-family: var(--font-display); letter-spacing: -0.03em; }
-  .sidebar-gradient {
-    background: linear-gradient(180deg, #080e1a 0%, #060b14 100%);
-  }
-  .kpi-shimmer {
-    position: relative;
-    overflow: hidden;
-  }
-  .kpi-shimmer::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      115deg,
-      transparent 25%,
-      rgba(255,255,255,0.015) 50%,
-      transparent 75%
-    );
-    animation: shimmer 5s ease-in-out infinite;
-  }
-  @keyframes shimmer {
-    0%, 100% { transform: translateX(-120%); }
-    50% { transform: translateX(120%); }
-  }
+
   .badge-live {
-    background: rgba(52,211,153,0.06);
-    border: 1px solid rgba(52,211,153,0.25);
-    color: var(--signal-sell);
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.3);
+    color: #34d399;
   }
   .badge-live::before {
     content: '';
@@ -155,43 +100,21 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--signal-sell);
-    margin-right: 8px;
+    background: #34d399;
+    margin-right: 6px;
     box-shadow: 0 0 6px rgba(52,211,153,0.6);
-    animation: pulse-dot 2.5s ease-in-out infinite;
+    animation: pulse-dot 2s ease-in-out infinite;
   }
   @keyframes pulse-dot {
     0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.7); }
+    50% { opacity: 0.4; transform: scale(0.6); }
   }
-  .section-divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent 5%, var(--panel-border) 50%, transparent 95%);
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
   }
-  .stat-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.015) 0%, transparent 50%);
-    border: 1px solid var(--panel-border);
-    border-radius: calc(var(--radius) - 2px);
-  }
-  .business-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.012) 0%, transparent 60%);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius);
-    transition: all 0.2s ease;
-  }
-  .business-card:hover {
-    border-color: rgba(34,211,238,0.2);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  }
-  .feature-bar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--accent);
-    overflow: hidden;
-  }
-  .feature-bar-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 }
