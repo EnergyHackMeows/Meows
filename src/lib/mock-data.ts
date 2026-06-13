@@ -1,142 +1,185 @@
 // ============================================================================
-// Mock data generator for GridSight forecast dashboard.
+// GridSight Data Layer — Real Model Outputs
 //
-// >>> SWAP POINT: Replace `generateMockData()` with a fetch() call to your
-//     Python inference API. Keep the shape of `ForecastPoint` identical.
-//     Example:
-//       const res = await fetch("/api/forecast?zone=All Germany&asset=solar");
-//       const data: ForecastPoint[] = await res.json();
+// ALL data in this file comes from:
+//   model/generate_frontend_data.py
+// which runs inference on trained LightGBM models using real SMARD + Open-Meteo data.
+//
+// NO dummy data. NO random numbers. NO assumptions.
 // ============================================================================
 
-export type AssetType = "solar" | "wind";
-export type Zone =
-  | "All Germany"
-  | "TenneT"
-  | "50Hertz"
-  | "Amprion"
-  | "TransnetBW";
+import gridData from "./grid-data.json";
 
-export const ZONES: Zone[] = [
-  "All Germany",
-  "TenneT",
-  "50Hertz",
-  "Amprion",
-  "TransnetBW",
+export type Zone = "All Germany" | "50Hertz" | "TenneT" | "Amprion" | "TransnetBW";
+export type Timeframe = "15min" | "1h" | "daily" | "weekly" | "monthly" | "yearly";
+export type AssetView = "solar" | "wind" | "both";
+
+export const ZONES: Zone[] = ["All Germany", "50Hertz", "TenneT", "Amprion", "TransnetBW"];
+export const TIMEFRAMES: { key: Timeframe; label: string; description: string }[] = [
+  { key: "15min", label: "15 min", description: "Raw SMARD generation data (last 24h)" },
+  { key: "1h", label: "1 Hour", description: "Hourly model forecast (next 72h)" },
+  { key: "daily", label: "1 Day", description: "Daily actuals vs predictions (test set)" },
+  { key: "weekly", label: "1 Week", description: "Weekly totals (Mar–Jun 2026)" },
+  { key: "monthly", label: "1 Month", description: "Monthly totals (2021–2026)" },
+  { key: "yearly", label: "1 Year", description: "Yearly totals (2021–2026)" },
 ];
 
-export type WeatherCondition = "Sunny" | "Cloudy" | "High Wind Storm" | "Overcast" | "Clear Night";
-
-export interface ForecastPoint {
-  timestamp: string;          // ISO/UTC
-  actualGeneration: number;   // SMARD.de ground truth (MWh)
-  predictedGeneration: number;// ML model output (MWh)
-  baseline: number;           // Naive persistence baseline (MWh)
-  bandLower: number;          // 80% CI lower
-  bandUpper: number;          // 80% CI upper
-  assetType: AssetType;
-  zoneLocation: Zone;
-  weatherCondition: WeatherCondition;
+// Types matching the JSON structure
+export interface ModelMetrics {
+  mae: number;
+  rmse: number;
+  baselineMae: number;
+  baselineRmse: number;
+  improvement: number;
+  coverage: number;
 }
 
-// Deterministic pseudo-random so charts don't flicker
-function mulberry32(seed: number) {
-  return () => {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+export interface FeatureImportance {
+  name: string;
+  importance: number;
 }
 
-const ZONE_SCALE: Record<Zone, number> = {
-  "All Germany": 1.0,
-  TenneT: 0.42,
-  "50Hertz": 0.28,
-  Amprion: 0.22,
-  TransnetBW: 0.12,
-};
-
-function solarCurve(hour: number) {
-  // bell curve peaked at noon
-  const x = (hour - 13) / 4.2;
-  return Math.max(0, Math.exp(-x * x) * 18);
+export interface HourlyPoint {
+  ts: string;
+  hour: number;
+  solar_q50: number;
+  solar_q10: number;
+  solar_q90: number;
+  wind_q50: number;
+  wind_q10: number;
+  wind_q90: number;
+  persistence_solar: number;
+  persistence_wind: number;
 }
 
-function windCurve(hour: number, rand: () => number) {
-  // baseline + slow oscillation + noise
-  return 8 + 3 * Math.sin((hour / 24) * Math.PI * 2 + 1.1) + (rand() - 0.5) * 2;
+export interface FifteenMinPoint {
+  ts: string;
+  solar: number;
+  wind_total: number;
 }
 
-export function generateMockData(opts?: { seed?: number; anchor?: Date }): ForecastPoint[] {
-  const rand = mulberry32(opts?.seed ?? 42);
-  const anchor = opts?.anchor ?? new Date();
-  anchor.setMinutes(0, 0, 0);
-  const start = new Date(anchor.getTime() - 12 * 3600_000); // 12h back, 12h forward
-
-  const points: ForecastPoint[] = [];
-  const STEPS = 24 * 4; // 24h quarter-hourly
-
-  for (const zone of ZONES) {
-    const scale = ZONE_SCALE[zone];
-    for (const asset of ["solar", "wind"] as AssetType[]) {
-      for (let i = 0; i < STEPS; i++) {
-        const ts = new Date(start.getTime() + i * 15 * 60_000);
-        const hour = ts.getHours() + ts.getMinutes() / 60;
-
-        const base = asset === "solar" ? solarCurve(hour) : windCurve(hour, rand);
-        const weatherNoise = (rand() - 0.5) * (asset === "solar" ? 1.6 : 2.8);
-        const actual = Math.max(0, (base + weatherNoise) * scale);
-
-        // Predicted ~ actual with small model error
-        const modelErr = (rand() - 0.5) * (asset === "solar" ? 0.8 : 1.4) * scale;
-        const predicted = Math.max(0, actual + modelErr);
-
-        // Naive persistence = value from 24h ago — simulate by shifting curve
-        const baselineHour = hour;
-        const baseB = asset === "solar" ? solarCurve(baselineHour) : windCurve(baselineHour + 3, rand);
-        const baselineNoise = (rand() - 0.5) * (asset === "solar" ? 3.5 : 4.2);
-        const baseline = Math.max(0, (baseB + baselineNoise) * scale);
-
-        const sigma = Math.max(0.4, predicted * 0.12);
-        const weather: WeatherCondition =
-          asset === "solar"
-            ? hour < 6 || hour > 20
-              ? "Clear Night"
-              : actual > 10 * scale
-                ? "Sunny"
-                : "Cloudy"
-            : actual > 11 * scale
-              ? "High Wind Storm"
-              : "Overcast";
-
-        points.push({
-          timestamp: ts.toISOString(),
-          actualGeneration: round(actual),
-          predictedGeneration: round(predicted),
-          baseline: round(baseline),
-          bandLower: round(Math.max(0, predicted - sigma)),
-          bandUpper: round(predicted + sigma),
-          assetType: asset,
-          zoneLocation: zone,
-          weatherCondition: weather,
-        });
-      }
-    }
-  }
-  return points;
+export interface DailyPoint {
+  date: string;
+  solar_actual: number;
+  wind_actual: number;
+  solar_pred: number;
+  wind_pred: number;
+  solar_lo: number;
+  solar_hi: number;
+  wind_lo: number;
+  wind_hi: number;
+  baseline_solar: number;
+  baseline_wind: number;
 }
 
-function round(n: number) {
-  return Math.round(n * 100) / 100;
+export interface WeeklyPoint {
+  week: string;
+  solar_actual: number;
+  wind_actual: number;
+  solar_pred: number;
+  wind_pred: number;
+  baseline_solar: number;
+  baseline_wind: number;
 }
 
-// Metrics
-export function mae(rows: { a: number; p: number }[]) {
-  if (!rows.length) return 0;
-  return rows.reduce((s, r) => s + Math.abs(r.a - r.p), 0) / rows.length;
+export interface MonthlyPoint {
+  month: string;
+  solar: number;
+  wind: number;
 }
-export function rmse(rows: { a: number; p: number }[]) {
-  if (!rows.length) return 0;
-  const m = rows.reduce((s, r) => s + (r.a - r.p) ** 2, 0) / rows.length;
-  return Math.sqrt(m);
+
+export interface YearlyPoint {
+  year: string;
+  solar: number;
+  wind: number;
+}
+
+export interface RampEvent {
+  hour: number;
+  delta: number;
+  direction: "up" | "down";
+  magnitude: "medium" | "large";
+}
+
+export interface MarketSignals {
+  peak_renewable_hour: number;
+  peak_generation_mwh: number;
+  min_renewable_hour: number;
+  min_generation_mwh: number;
+  total_24h_generation: number;
+  ramp_events: RampEvent[];
+  recommendation: string;
+}
+
+// Cast imported data
+const data = gridData as any;
+
+// Public API
+export function getMetrics(zone: Zone): { solar: ModelMetrics; wind: ModelMetrics } {
+  return data.metrics[zone];
+}
+
+export function getFeatureImportance(asset: "solar" | "wind"): FeatureImportance[] {
+  return data.feature_importance[asset];
+}
+
+export function getMarketSignals(): MarketSignals {
+  return data.market_signals;
+}
+
+export function getDataSource() {
+  return data.data_source;
+}
+
+export function getModelConfig() {
+  return data.model_config;
+}
+
+export function get15MinData(zone: Zone): FifteenMinPoint[] {
+  return data.timeframes["15min"][zone] ?? [];
+}
+
+export function getHourlyForecast(zone: Zone): HourlyPoint[] {
+  return data.timeframes["1h"][zone] ?? [];
+}
+
+export function getDailyData(zone: Zone): DailyPoint[] {
+  return data.timeframes["daily"][zone] ?? [];
+}
+
+export function getWeeklyData(zone: Zone): WeeklyPoint[] {
+  return data.timeframes["weekly"][zone] ?? [];
+}
+
+export function getMonthlyData(zone: Zone): MonthlyPoint[] {
+  return data.timeframes["monthly"][zone] ?? [];
+}
+
+export function getYearlyData(zone: Zone): YearlyPoint[] {
+  return data.timeframes["yearly"][zone] ?? [];
+}
+
+// Derived computations
+export function getPeakSolar(zone: Zone): number {
+  const hourly = getHourlyForecast(zone);
+  if (!hourly.length) return 0;
+  return Math.max(...hourly.map(h => h.solar_q50));
+}
+
+export function getPeakWind(zone: Zone): number {
+  const hourly = getHourlyForecast(zone);
+  if (!hourly.length) return 0;
+  return Math.max(...hourly.map(h => h.wind_q50));
+}
+
+export function getTotalGeneration(zone: Zone): number {
+  const hourly = getHourlyForecast(zone);
+  return hourly.reduce((sum, h) => sum + h.solar_q50 + h.wind_q50, 0);
+}
+
+export function getCombinedImprovement(zone: Zone): number {
+  const m = getMetrics(zone);
+  const combinedModel = m.solar.mae + m.wind.mae;
+  const combinedBaseline = m.solar.baselineMae + m.wind.baselineMae;
+  return combinedBaseline > 0 ? ((combinedBaseline - combinedModel) / combinedBaseline) * 100 : 0;
 }
