@@ -1,0 +1,13 @@
+name = "meows"
+compatibility_date = "2026-06-13"
+main = "./dist/server/index.mjs"
+compatibility_flags = ["nodejs_compat"]
+no_bundle = true
+pages_build_output_dir = "./dist/client"
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.mjs", "**/*.js"]
+
+# Do not declare [assets] binding = "ASSETS" on Pages — Cloudflare reserves
+# that name and injects it automatically from pages_build_output_dir.
