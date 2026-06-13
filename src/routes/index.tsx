@@ -50,6 +50,7 @@ import {
   type Timeframe,
   type AssetView,
 } from "@/lib/mock-data";
+import { GermanyMap } from "@/components/GermanyMap";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -161,21 +162,11 @@ function Dashboard() {
 
         <div className="section-divider mx-5" />
 
-        {/* Zone selector */}
+        {/* Zone selector — Interactive Map */}
         <div className="px-5 mt-4">
-          <SectionLabel icon={<Layers className="size-3" />}>Zone</SectionLabel>
-          <div className="flex flex-col gap-0.5 mt-2">
-            {ZONES.map(z => (
-              <button key={z} onClick={() => setZone(z)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] transition-all ${
-                  zone === z
-                    ? "bg-[color:var(--accent)] border border-[color:var(--panel-border)] text-foreground"
-                    : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-white/[0.02]"
-                }`}>
-                <span className={`size-1.5 rounded-full ${zone === z ? "bg-[color:var(--signal-sell)]" : "bg-muted-foreground/40"}`} />
-                <span className="font-medium">{z}</span>
-              </button>
-            ))}
+          <SectionLabel icon={<Layers className="size-3" />}>Select Zone</SectionLabel>
+          <div className="mt-2">
+            <GermanyMap selected={zone} onSelect={setZone} />
           </div>
         </div>
 
