@@ -30,3 +30,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Intermediate parquet files
+weather_50Hertz.parquet
+weather_Amprion.parquet
+weather_TenneT.parquet
+weather_TransnetBW.parquet
+weather.parquet
+somrad.parquet
+weather_forecast_holdout.parquet
+somrad_forecast_holdout.parquet
+
+# API cache
+.cache_openmeteo*
+
+# Python
+__pycache__/
+*.py[cod]
+.env
