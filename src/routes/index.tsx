@@ -16,6 +16,7 @@ import {
   BarChart3,
   CheckCircle2,
   Clock,
+  Scale,
   Shield,
   Sun,
   TrendingUp,
@@ -24,6 +25,8 @@ import {
 } from "lucide-react";
 
 import { GermanyMap } from "../components/GermanyMap";
+import { MarketTimeline } from "../components/MarketTimeline";
+import { ImbalanceRiskPanel } from "../components/ImbalanceRiskPanel";
 import {
   type Zone,
   ZONES,
@@ -43,6 +46,7 @@ import {
   getModelConfig,
   getGeneratedAt,
 } from "../lib/mock-data";
+import { getImbalanceSummary } from "../lib/market";
 
 export const Route = createFileRoute("/")({
   component: Dashboard,
@@ -60,6 +64,7 @@ function Dashboard() {
   const alerts = useMemo(() => getCriticalAlerts(zone), [zone]);
   const peak = useMemo(() => getPeakGeneration(zone), [zone]);
   const rampCount = useMemo(() => getRampCount(zone), [zone]);
+  const imbalance = useMemo(() => getImbalanceSummary(zone), [zone]);
   const product = getProduct();
   const modelConfig = getModelConfig();
   const solarImp = getFeatureImportance("solar");
@@ -137,13 +142,16 @@ function Dashboard() {
             icon={<Activity className="w-4 h-4" />}
           />
           <KPI
-            label="Annual Value"
-            value={formatEUR(savings.annual_saving_eur)}
-            sub="imbalance cost reduction"
-            color="emerald"
-            icon={<Zap className="w-4 h-4" />}
+            label="24h Imbalance €"
+            value={formatEUR(imbalance.expected_cost_eur_24h)}
+            sub={`${imbalance.solarspitzen_hours}h Solarspitzen risk`}
+            color={imbalance.solarspitzen_hours > 0 ? "red" : imbalance.expected_cost_eur_24h > 50000 ? "amber" : "emerald"}
+            icon={<Scale className="w-4 h-4" />}
           />
         </div>
+
+        {/* ─── German Day-Ahead Market Timeline ─── */}
+        <MarketTimeline />
 
         {/* ─── Main Content ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -248,6 +256,9 @@ function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* ─── Imbalance / reBAP exposure ─── */}
+        <ImbalanceRiskPanel zone={zone} />
 
         {/* ─── Alerts + Model Performance + Features ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
